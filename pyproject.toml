@@ -1,0 +1,60 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "sim-plugin-matlab"
+version = "0.1.0"
+description = "MATLAB driver for sim-cli, distributed as an out-of-tree plugin"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.10"
+authors = [{ name = "Weiqi Ji", email = "jiweiqi10@gmail.com" }]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: Apache Software License",
+]
+# matlabengine is rigidly coupled to the MATLAB binary version (24.1 only
+# talks to R2024a, etc.) and MathWorks does not provide a meta-package that
+# resolves the right pin automatically. Leave it unpinned here — the user
+# (or `sim env install matlab`) picks the SDK that matches the MATLAB
+# release they actually have. See compatibility.yaml for the mapping.
+dependencies = [
+    "sim-runtime @ git+https://github.com/svd-ai-lab/sim-cli@main",
+    "matlabengine",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=7",
+]
+
+[project.entry-points."sim.drivers"]
+matlab = "sim_plugin_matlab:MatlabDriver"
+
+[project.entry-points."sim.skills"]
+matlab = "sim_plugin_matlab:skills_dir"
+
+[project.urls]
+Homepage = "https://github.com/svd-ai-lab/sim-plugin-matlab"
+Issues = "https://github.com/svd-ai-lab/sim-plugin-matlab/issues"
+
+[tool.hatch.metadata]
+# Required because `sim-runtime` is pinned to a git+https URL — sim-cli is
+# distributed via GitHub, not PyPI. See sim-proj memory: plugin distribution
+# is GitHub-only.
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/sim_plugin_matlab"]
+# Ship the MATLAB +sim_shim package (.m files) and compatibility.yaml as
+# package data — hatchling's default include rules cover them when they
+# live under the package dir, but be explicit to defend against future
+# regressions.
+include = ["src/sim_plugin_matlab/**"]

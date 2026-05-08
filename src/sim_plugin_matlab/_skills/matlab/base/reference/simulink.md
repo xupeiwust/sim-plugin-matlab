@@ -7,8 +7,8 @@ Everything else on that roadmap (rest-of-Phase B shim helpers,
 in Phase C, `SimulationResult` dataclass in Phase D, sample `.slx`
 assets in Phase F, and shared / persistent Simulink sessions — a
 [non-goal](https://github.com/svd-ai-lab/sim-cli/issues/27) for now) is
-**deferred** and not available at the `sim` CLI today. This skill doc
-is the sim-skills side of Phase E.
+**deferred** and not available at the `sim` CLI today. This file is the
+plugin-bundled Simulink reference for the MATLAB driver.
 
 ## Input dispatch
 
@@ -27,9 +27,9 @@ helper `sim_shim.run` shipped alongside the driver.
 ## Package helper: `sim_shim.run`
 
 Shipped as a MATLAB package at
-`src/sim/drivers/matlab/resources/+sim_shim/run.m` (in the sim-cli
-repo). The driver adds `resources/` to the MATLAB path so the
-package is resolvable as `sim_shim.run`.
+`src/sim_plugin_matlab/matlab_pkg/+sim_shim/run.m` in this plugin repo.
+The driver adds `matlab_pkg/` to the MATLAB path so the package is
+resolvable as `sim_shim.run`.
 
 ### Signature
 
@@ -92,7 +92,7 @@ succeeded, otherwise `[]`.
 ## Lifecycle wrapper (what the driver actually runs)
 
 ```matlab
-addpath('<sim-cli>/src/sim/drivers/matlab/resources');
+addpath('<sim-plugin-matlab>/src/sim_plugin_matlab/matlab_pkg');
 load_system('/abs/path/to/<model>.<ext>');
 cleanup__ = onCleanup(@() close_system('<model>', 0));
 sim_shim.run('<model>', '{}', '<script_parent>/.sim/<model>/');
@@ -179,11 +179,10 @@ From issue #27's phased plan — everything below is **future work**:
   yet; there is no per-release regression fixture. If you want a
   smoke-test model, supply your own.
 - **Shared / persistent Simulink session.** Listed under issue #27's
-  Non-goals — same deferral as the rest of the MATLAB driver's
-  remote-session story. Every `sim run` is a cold MATLAB batch;
-  workspace / loaded-systems state does not survive between
-  invocations. `sim connect --solver matlab` works for pure `.m`
-  scripting but is not a documented path for driving `.slx` models.
+  Non-goals. Every `sim run` is a cold MATLAB batch; workspace /
+  loaded-systems state does not survive between invocations. `sim
+  connect --solver matlab` works for pure `.m` scripting but is not a
+  documented path for driving `.slx` models.
 
 ## Common pitfalls
 

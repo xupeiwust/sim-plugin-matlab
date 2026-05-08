@@ -7,4 +7,5 @@ Planned focus:
 - `sim check matlab`
 - `sim lint` on `.m` files
 - `sim run --solver matlab` against small JSON-emitting fixtures
-- later, persistent-session tests once MATLAB session support lands in `sim`
+- `sim connect --solver matlab` / `sim exec` / `sim disconnect` for local
+  persistent MATLAB engine sessions

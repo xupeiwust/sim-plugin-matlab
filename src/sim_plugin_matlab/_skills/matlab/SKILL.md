@@ -1,19 +1,27 @@
 ---
 name: matlab-sim
-description: Use when running MATLAB `.m` scripts or Simulink `.slx` / `.mdl` models through sim-cli's MATLAB driver — one-shot via `sim run --solver matlab`, with explicit JSON result extraction and conservative handling of MATLAB desktop and Simulink model state. Persistent local sessions are planned for v1; shared / remote Simulink sessions are a non-goal.
+description: Use when running MATLAB `.m` scripts or Simulink `.slx` / `.mdl` models through sim-cli's MATLAB plugin — one-shot via `sim run --solver matlab`, local persistent sessions via `sim connect --solver matlab`, explicit JSON result extraction, and conservative handling of MATLAB desktop and Simulink model state. Shared / remote Simulink sessions are a non-goal.
 ---
 
 # matlab-sim
 
-You are driving **MATLAB** via sim-cli in the **one-shot batch** model.
-This file is the **index** — it tells you where to look for content,
-not what the content says.
+You are driving **MATLAB** via the sim MATLAB plugin. This skill is
+self-contained for MATLAB-specific work: it covers one-shot batch runs,
+local persistent sessions, Simulink dispatch, version probing, acceptance, and
+escalation points for this plugin.
 
-> **First, read [`../sim-cli/SKILL.md`](../sim-cli/SKILL.md)** — it owns
-> the shared runtime contract (command surface, one-shot lifecycle,
-> Step-0 version probe, input classification, acceptance, escalation).
-> This skill covers only the MATLAB-specific layer on top of that
-> contract.
+Start every real task with:
+
+```bash
+sim check matlab
+```
+
+For one-shot execution, use `sim run --solver matlab <script-or-model>`. For a
+local persistent MATLAB engine session, use `sim connect --solver matlab`, then
+bounded `sim exec` snippets, then `sim disconnect`. Persistent sessions require
+the optional `matlabengine` package that matches the installed MATLAB release;
+use `sim env install matlab` or install the matching pin from
+`compatibility.yaml`.
 
 ---
 
@@ -56,9 +64,9 @@ Empty stubs by default; per-engine deltas land here as discovered.
 ### Documentation lookup
 
 Primary route for every MATLAB doc question is **MATLAB's own `help()`
-/ `doc` via the engine**. The filesystem scanner in `doc-search/` is a
-narrow fallback — on R2024+ it finds almost nothing because MathWorks
-now ships reference docs as a Lucene binary index, not static HTML.
+/ `doc` via the engine**. This plugin does not bundle a documentation scanner;
+on R2024+ MathWorks ships most reference docs as a Lucene binary index, not
+static HTML.
 
 #### Primary: `help()` / `doc` via the engine
 
@@ -87,7 +95,7 @@ For a longer write-up (the `doc` command's content), use
 `sim exec "open(which('fft'));"` only when a desktop is available;
 otherwise query the online docs at `https://www.mathworks.com/help/`.
 
-#### Fallback: `sim-matlab-doc` filesystem scanner
+#### Fallback: local docs and online docs
 
 **Known limitation:** on MATLAB R2024a and later, the per-toolbox
 folders under `<matlabroot>/help/` (`optim/`, `simulink/`, `stats/`,
@@ -101,16 +109,9 @@ What the scanner still catches on modern installs:
 - Pockets of HTML under `customdoc/`, `coder/`, and a few other dirs.
 - The core MATLAB help on **R2023b and earlier** (full static HTML).
 
-If you're on R2023b or older, or you're grepping for tutorial-style
-content, it's still useful:
-
-```bash
-cd <sim-skills>/matlab/doc-search && uv sync   # one-time install
-uv run --project <sim-skills>/matlab/doc-search \
-    sim-matlab-doc search "<keywords>" [--module <toolbox>]
-```
-
-For any function / API question on R2024+, go straight to `help()`.
+If you need longer prose than `help()` gives, use MATLAB's `doc` command when a
+desktop is available, or query `https://www.mathworks.com/help/`. For function
+and API questions on R2024+, go straight to `help()`.
 
 ### `tests/` (top-level, QA-only)
 
@@ -121,10 +122,10 @@ Not loaded during a normal session.
 ## Simulink
 
 The MATLAB driver dispatches on input suffix. `.slx` and `.mdl` models
-route through a package helper shipped with the driver at
-`src/sim/drivers/matlab/resources/+sim_shim/run.m`, not through the
+route through a package helper shipped with this plugin at
+`src/sim_plugin_matlab/matlab_pkg/+sim_shim/run.m`, not through the
 generic `matlab -batch run('<script>')` wrapper used for `.m` files.
-The driver adds the `resources/` parent to the MATLAB path, opens the
+The driver adds the `matlab_pkg/` parent to the MATLAB path, opens the
 model with `load_system`, registers an `onCleanup` that calls
 `close_system(<name>, 0)`, calls `sim_shim.run(<name>, '{}', <out_dir>)`,
 and parses the final JSON line from stdout. `sim_shim.run` runs `sim()`,

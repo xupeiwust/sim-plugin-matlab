@@ -35,7 +35,13 @@ def test_wheel_contains_skills(tmp_path: Path) -> None:
     required = {
         "sim_plugin_matlab/__init__.py",
         "sim_plugin_matlab/driver.py",
+        "sim_plugin_matlab/compatibility.yaml",
+        "sim_plugin_matlab/matlab_pkg/+sim_shim/run.m",
         "sim_plugin_matlab/_skills/matlab/SKILL.md",
+        "sim_plugin_matlab/_skills/matlab/base/driver_upgrade.md",
+        "sim_plugin_matlab/_skills/matlab/base/reference/simulink.md",
+        "sim_plugin_matlab/_skills/matlab/base/workflows/README.md",
+        "sim_plugin_matlab/_skills/matlab/sdk/24.1/notes.md",
     }
     missing = required - names
     assert not missing, f"missing from wheel: {missing}"

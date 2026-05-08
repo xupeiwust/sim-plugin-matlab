@@ -5,13 +5,15 @@ build-backend = "hatchling.build"
 [project]
 name = "sim-plugin-matlab"
 version = "0.1.0"
-description = "MATLAB driver for sim-cli, distributed as an out-of-tree plugin"
+description = "MATLAB and Simulink driver for sim-cli, distributed as a plugin"
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.10"
 authors = [{ name = "Weiqi Ji", email = "jiweiqi10@gmail.com" }]
+keywords = ["matlab", "simulink", "cae", "simulation", "sim-cli", "plugin"]
 classifiers = [
     "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
     "Topic :: Scientific/Engineering",
     "Programming Language :: Python :: 3",
@@ -20,17 +22,19 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "License :: OSI Approved :: Apache Software License",
 ]
-# matlabengine is rigidly coupled to the MATLAB binary version (24.1 only
-# talks to R2024a, etc.) and MathWorks does not provide a meta-package that
-# resolves the right pin automatically. Leave it unpinned here — the user
-# (or `sim env install matlab`) picks the SDK that matches the MATLAB
-# release they actually have. See compatibility.yaml for the mapping.
 dependencies = [
     "sim-cli-core>=0.3",
-    "matlabengine",
 ]
 
 [project.optional-dependencies]
+engine = [
+    # matlabengine is rigidly coupled to the MATLAB binary version (24.1 only
+    # talks to R2024a, etc.) and MathWorks does not provide a meta-package that
+    # resolves the right pin automatically. Leave it unpinned here; users or
+    # `sim env install matlab` choose the SDK that matches the MATLAB release
+    # they actually have. See compatibility.yaml for the mapping.
+    "matlabengine",
+]
 test = [
     "pytest>=7",
     "build>=1.0",
@@ -47,6 +51,7 @@ matlab = "sim_plugin_matlab:plugin_info"
 
 [project.urls]
 Homepage = "https://github.com/svd-ai-lab/sim-plugin-matlab"
+Repository = "https://github.com/svd-ai-lab/sim-plugin-matlab"
 Issues = "https://github.com/svd-ai-lab/sim-plugin-matlab/issues"
 
 [tool.hatch.build.targets.wheel]
@@ -56,7 +61,9 @@ packages = ["src/sim_plugin_matlab"]
 # live under the package dir, but be explicit to defend against future
 # regressions.
 include = ["src/sim_plugin_matlab/**"]
+
 [tool.pytest.ini_options]
+testpaths = ["tests"]
 markers = [
   "integration: tests that build wheels or touch external tooling",
 ]

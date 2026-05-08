@@ -1,6 +1,6 @@
 """MATLAB driver plugin for sim-cli.
 
-Distributed as an out-of-tree plugin; discovered by sim-cli via the
+Distributed as a plugin; discovered by sim-cli via the
 ``sim.drivers`` entry-point group. Bundled skill files (under ``_skills/``)
 are exposed via the ``sim.skills`` entry-point group.
 """
@@ -13,7 +13,7 @@ skills_dir = files(__name__) / "_skills"
 
 plugin_info = {
     "name": "matlab",
-    "summary": "Driver plugin for sim-cli.",
+    "summary": "MATLAB and Simulink driver plugin for sim-cli.",
     "homepage": "https://github.com/svd-ai-lab/sim-plugin-matlab",
     "license_class": "commercial",
     "solver_name": "matlab",

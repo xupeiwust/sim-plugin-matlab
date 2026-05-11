@@ -4,7 +4,7 @@ This folder is for MATLAB-specific runtime notes, curated upstream references, a
 
 Planned content:
 
-- MATLAB execution patterns for `sim run --solver matlab`
+- MATLAB execution patterns for `uv run sim run --solver matlab`
 - session/query notes for future persistent MATLAB support
 - accepted JSON output conventions for `.m` scripts
 - links to official MATLAB docs and reusable upstream MCP/skills assets

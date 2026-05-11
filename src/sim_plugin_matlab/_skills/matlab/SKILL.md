@@ -1,6 +1,6 @@
 ---
 name: matlab-sim
-description: Use when running MATLAB `.m` scripts or Simulink `.slx` / `.mdl` models through sim-cli's MATLAB plugin — one-shot via `sim run --solver matlab`, local persistent sessions via `sim connect --solver matlab`, explicit JSON result extraction, and conservative handling of MATLAB desktop and Simulink model state. Shared / remote Simulink sessions are a non-goal.
+description: Use when running MATLAB `.m` scripts or Simulink `.slx` / `.mdl` models through sim-cli's MATLAB plugin — one-shot via `uv run sim run --solver matlab`, local persistent sessions via `uv run sim connect --solver matlab`, explicit JSON result extraction, and conservative handling of MATLAB desktop and Simulink model state. Shared / remote Simulink sessions are a non-goal.
 ---
 
 # matlab-sim
@@ -13,14 +13,14 @@ escalation points for this plugin.
 Start every real task with:
 
 ```bash
-sim check matlab
+uv run sim check matlab
 ```
 
-For one-shot execution, use `sim run --solver matlab <script-or-model>`. For a
-local persistent MATLAB engine session, use `sim connect --solver matlab`, then
-bounded `sim exec` snippets, then `sim disconnect`. Persistent sessions require
+For one-shot execution, use `uv run sim run --solver matlab <script-or-model>`. For a
+local persistent MATLAB engine session, use `uv run sim connect --solver matlab`, then
+bounded `uv run sim exec` snippets, then `uv run sim disconnect`. Persistent sessions require
 the optional `matlabengine` package that matches the installed MATLAB release;
-use `sim env install matlab` or install the matching pin from
+use `uv run sim env install matlab` or install the matching pin from
 `compatibility.yaml`.
 
 Other optional MATLAB and Simulink agent toolkits may be available in the
@@ -33,15 +33,15 @@ Agentic Toolkit, and MATLAB MCP Core Server tools such as
 
 Do not install, configure, vendor, or assume external agent toolkits from
 inside this plugin. If those tools are present, agents and users can combine
-them directly with `sim`; if they are absent, `sim run`, `sim exec`, and MATLAB
+them directly with `sim`; if they are absent, `uv run sim run`, `uv run sim exec`, and MATLAB
 `-batch` remain valid paths.
 
 ---
 
 ## MATLAB-specific layered content
 
-`sim inspect session.versions` (run against a short-lived session
-before your real `sim run`) returns:
+`uv run sim inspect session.versions` (run against a short-lived session
+before your real `uv run sim run`) returns:
 
 ```json
 "session.versions": {
@@ -62,7 +62,7 @@ Always read `base/`, then your active `sdk/<slug>/`.
 | Path | What's there |
 |---|---|
 | `base/reference/` | MATLAB-specific control patterns: how to pass numpy arrays to engine, how to read engine.workspace, how to surface MATLAB errors as Python exceptions. |
-| `base/snippets/` | Ready-made `sim run` payloads for common analyses. |
+| `base/snippets/` | Ready-made `uv run sim run` payloads for common analyses. |
 | `base/workflows/` | End-to-end multi-script examples. |
 | `base/driver_upgrade.md` | Process notes for bumping the matlabengine SDK pin. |
 
@@ -86,10 +86,10 @@ static HTML.
 From a live sim session:
 
 ```bash
-sim exec "disp(help('fft'))"
-sim exec "disp(help('ode45'))"
-sim exec "disp(help('fmincon'))"        # Optimization Toolbox
-sim exec "disp(help('solve'))"          # Symbolic Math Toolbox
+uv run sim exec "disp(help('fft'))"
+uv run sim exec "disp(help('ode45'))"
+uv run sim exec "disp(help('fmincon'))"        # Optimization Toolbox
+uv run sim exec "disp(help('solve'))"          # Symbolic Math Toolbox
 ```
 
 Without a session (and without paying matlabengine startup cost), use
@@ -105,7 +105,7 @@ identically across all MATLAB releases. Verified end-to-end against
 R2025b: returns structured syntax + arguments + examples + see-also.
 
 For a longer write-up (the `doc` command's content), use
-`sim exec "open(which('fft'));"` only when a desktop is available;
+`uv run sim exec "open(which('fft'));"` only when a desktop is available;
 otherwise query the online docs at `https://www.mathworks.com/help/`.
 
 #### Fallback: local docs and online docs
@@ -147,7 +147,7 @@ writes either `<out_dir>/<model>_out.parquet` (preferred) or
 `<out_dir>/<model>_out.mat` (fallback), then emits a single line of the
 form `{"ok":true,"result_file":"<path>","format":"parquet|mat","signals":[...]}`.
 `out_dir` defaults to `<script_parent>/.sim/<model_name>/`. The
-`sim check matlab` probe additionally surfaces `simulink: installed |
+`uv run sim check matlab` probe additionally surfaces `simulink: installed |
 not found on disk` per install, driven by a filesystem check for
 `<matlabroot>/toolbox/simulink/simulink/`. Full contract in
 [`base/reference/simulink.md`](base/reference/simulink.md).
@@ -161,7 +161,7 @@ What is **not** wired yet (deferred per [sim-cli issue
 / `SweepResult` dataclass wrapping the pointer JSON (Phase D); sample
 `.slx` regression fixtures in sim-datasets (Phase F); and shared /
 persistent Simulink sessions (listed under Non-goals in issue #27).
-Today you get one `sim run <model.slx>` per simulation and read the
+Today you get one `uv run sim run <model.slx>` per simulation and read the
 result file yourself; do not assume any of the deferred surface exists.
 
 ---
@@ -176,8 +176,8 @@ These add to — do not replace — the shared skill's hard constraints.
    the parser only picks up the **last** JSON object in stdout.
 2. **Don't depend on workspace survival across calls.** v0 is
    one-shot per script; the driver tears the engine down between
-   `sim run` invocations. Do not write snippets whose correctness
-   depends on workspace state set by an earlier `sim run`.
+   `uv run sim run` invocations. Do not write snippets whose correctness
+   depends on workspace state set by an earlier `uv run sim run`.
 3. **No MATLAB desktop.** Driver launches headless. Do not add
    `desktop` / `-desktop` flags — there is no display.
 
@@ -189,8 +189,8 @@ Follow the shared skill's required protocol for the **one-shot batch**
 model. MATLAB-specific steps: validate the `.m` script exists and its
 dependencies (data files, toolboxes) are on the MATLAB path; confirm
 the final script line emits a structured JSON object on stdout; run
-`sim run <script.m> --solver matlab`; parse the JSON line from stdout
+`uv run sim run <script.m> --solver matlab`; parse the JSON line from stdout
 (the driver does this via `parse_output()`) and evaluate against the
 user's acceptance criterion per the shared skill's `acceptance.md`.
-For multi-step pipelines, chain `sim run` calls — each is its own
+For multi-step pipelines, chain `uv run sim run` calls — each is its own
 engine lifecycle with no shared state.

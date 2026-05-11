@@ -6,4 +6,4 @@ Planned examples:
 
 - simple numeric compute + JSON result
 - script that produces files/plots plus structured summary
-- local persistent-session workflow once `sim connect --solver matlab` exists
+- local persistent-session workflow once `uv run sim connect --solver matlab` exists

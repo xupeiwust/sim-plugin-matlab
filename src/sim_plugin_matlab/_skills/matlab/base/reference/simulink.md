@@ -20,7 +20,7 @@ The MATLAB driver's `run_file()` inspects the input suffix:
 | `.slx`    | `matlab -batch "addpath(...); load_system(...); sim_shim.run(...); close_system(...)"` |
 | `.mdl`    | same as `.slx`                                            |
 
-So `sim run my_model.slx --solver matlab` does **not** invoke
+So `uv run sim run my_model.slx --solver matlab` does **not** invoke
 `matlab -batch run('my_model.slx')`. It goes through the package
 helper `sim_shim.run` shipped alongside the driver.
 
@@ -34,7 +34,7 @@ Core Server.
 
 This plugin does not vendor external toolkit `.p` files or generated MCP
 wrappers. Its bundled `sim_shim.run` remains the `.slx` batch artifact path for
-`sim run --solver matlab <model>.slx`.
+`uv run sim run --solver matlab <model>.slx`.
 
 ## Package helper: `sim_shim.run`
 
@@ -143,11 +143,11 @@ are squeezed via `squeeze(value.Data)` then transposed if needed so
 the time axis ends up on the rows — check `signals` against the
 actual columns if you're building a generic reader.
 
-## Simulink probe in `sim check matlab`
+## Simulink probe in `uv run sim check matlab`
 
 `detect_installed()` sets `extra.simulink_installed` per discovered
 MATLAB install by testing for the existence of
-`<matlabroot>/toolbox/simulink/simulink/`. `sim check matlab`
+`<matlabroot>/toolbox/simulink/simulink/`. `uv run sim check matlab`
 renders this as:
 
 ```
@@ -164,7 +164,7 @@ The probe is filesystem-only — it does **not** call
 `license('test','Simulink')` or `license('checkout','Simulink')` and
 so does not consume a floating license or start the MATLAB engine.
 A missing flag means Simulink is not installed for that specific
-MATLAB root; if the flag is `installed` but `sim run <model>.slx`
+MATLAB root; if the flag is `installed` but `uv run sim run <model>.slx`
 still fails with a license error, that's a floating-license issue,
 not a skill-layer bug.
 
@@ -176,10 +176,10 @@ From issue #27's phased plan — everything below is **future work**:
   of the `+sim_shim/` package (`models()`, `blocks(model)`,
   `signals(model)`, `set(model, struct_json)`, and `sweep(model,
   sim_input_array_json)` for `parsim` / `Simulink.SimulationInput`
-  parameter sweeps) is not present. One `sim run` is exactly one
+  parameter sweeps) is not present. One `uv run sim run` is exactly one
   `sim()` call — no batch sweeps, no batched `set_param` from JSON.
 - **Phase C — driver query surface.**
-  `sim inspect session.models.summary` / `blocks.summary` /
+  `uv run sim inspect session.models.summary` / `blocks.summary` /
   `signals.summary` / `figures.summary` do not exist. You cannot
   interrogate a model's block list through the CLI; open it in
   MATLAB if you need that.
@@ -191,7 +191,7 @@ From issue #27's phased plan — everything below is **future work**:
   yet; there is no per-release regression fixture. If you want a
   smoke-test model, supply your own.
 - **Shared / persistent Simulink session.** Listed under issue #27's
-  Non-goals. Every `sim run` is a cold MATLAB batch; workspace /
+  Non-goals. Every `uv run sim run` is a cold MATLAB batch; workspace /
   loaded-systems state does not survive between invocations. `sim
   connect --solver matlab` works for pure `.m` scripting but is not a
   documented path for driving `.slx` models.

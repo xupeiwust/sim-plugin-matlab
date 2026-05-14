@@ -44,6 +44,7 @@ def _release_from_path(path: Path) -> str | None:
     Examples:
         C:\\Program Files\\MATLAB\\R2024a\\bin\\matlab.exe → R2024a
         /usr/local/MATLAB/R2023b/bin/matlab               → R2023b
+        /Applications/MATLAB_R2024a.app/bin/maci64/matlab → R2024a
     """
     for part in (str(path), str(path.parent), str(path.parent.parent)):
         m = re.search(r"R(\d{4})([ab])", part, re.IGNORECASE)
@@ -57,17 +58,92 @@ def _engine_version_for(release: str) -> str | None:
     return _MATLAB_RELEASE_TO_ENGINE.get(release)
 
 
+# ─── version probes ───────────────────────────────────────────────────────
+#
+# Same strategy-chain shape as the COMSOL driver: install-dir finders
+# answer "where is MATLAB?", version probes answer "what release is the
+# install at <dir>?". Decoupling these two questions is what lets us
+# recognize installs whose directory name doesn't match the canonical
+# `R20XXa` convention (e.g. Mathworks-China-style `Matlab_2024b/`).
+
+
+def _version_from_versioninfo_xml(install_dir: Path) -> str | None:
+    """MathWorks ships ``VersionInfo.xml`` at every install root since
+    R2008b. It contains a ``<release>R20XXa</release>`` tag, which is the
+    canonical, locale-invariant, dir-name-invariant source of truth.
+
+    Example file content::
+
+        <?xml version="1.0" encoding="UTF-8"?>
+        <MathWorks_version_info>
+          <version>24.2.0.2712019</version>
+          <release>R2024b</release>
+          ...
+        </MathWorks_version_info>
+
+    This is a Mathworks contract, not a heuristic — preferred over any
+    path-string parsing.
+    """
+    xml = install_dir / "VersionInfo.xml"
+    if not xml.is_file():
+        return None
+    try:
+        text = xml.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    m = re.search(r"<release>\s*R(\d{4})([ab])\s*</release>", text, re.IGNORECASE)
+    if m:
+        return f"R{m.group(1)}{m.group(2).lower()}"
+    return None
+
+
+def _version_from_install_path(install_dir: Path) -> str | None:
+    """Last-resort path-string probe. Kept for layouts without
+    VersionInfo.xml (very old MATLAB releases, custom enterprise repacks)
+    and as the macOS .app bundle fallback (``MATLAB_R2024a.app/``).
+    """
+    return _release_from_path(install_dir)
+
+
+_VERSION_PROBES: list[Callable[[Path], str | None]] = [
+    _version_from_versioninfo_xml,
+    _version_from_install_path,
+]
+"""Strategy chain. APPEND new probes for new MATLAB layouts; do not edit."""
+
+
+def _read_install_release(install_dir: Path) -> str | None:
+    """Walk _VERSION_PROBES in order; first non-None result wins."""
+    for probe in _VERSION_PROBES:
+        try:
+            v = probe(install_dir)
+        except Exception:
+            v = None
+        if v:
+            return v
+    return None
+
+
 def _make_install(matlab_bin: Path, source: str) -> SolverInstall | None:
     if not matlab_bin.is_file():
         return None
-    release = _release_from_path(matlab_bin)
+    # Resolve install root from the binary path. Most layouts place the
+    # binary at <root>/bin/<arch>/matlab (Linux/macOS) or <root>/bin/matlab.exe
+    # (Windows); walk up until we find VersionInfo.xml or run out of parents.
+    install_dir = matlab_bin.parent.parent
+    if not (install_dir / "VersionInfo.xml").is_file() and matlab_bin.parent.parent.parent != matlab_bin.parent.parent:
+        # Linux/macOS arch-suffixed layout: bin/glnxa64/matlab → root is one more up
+        alt = matlab_bin.parent.parent.parent
+        if (alt / "VersionInfo.xml").is_file():
+            install_dir = alt
+    release = _read_install_release(install_dir)
     if release is None:
         return None
     engine = _engine_version_for(release) or "?"
     return SolverInstall(
         name="matlab",
         version=release,
-        path=str(matlab_bin.parent.parent),  # the R20XXa root
+        path=str(install_dir),
         source=source,
         extra={
             "release_label": release,
@@ -100,41 +176,152 @@ def _candidates_from_path() -> list[tuple[Path, str]]:
     return out
 
 
-def _candidates_from_windows_defaults() -> list[tuple[Path, str]]:
-    """C:\\Program Files\\MATLAB\\R20XXa\\bin\\matlab.exe and friends."""
-    bases = [
-        Path(r"C:\Program Files\MATLAB"),
-        Path(r"C:\Program Files (x86)\MATLAB"),
-        Path(r"D:\Program Files\MATLAB"),
-        Path(r"E:\Program Files\MATLAB"),
+# ─── install-dir probing helpers ──────────────────────────────────────────
+
+
+def _matlab_binary_paths(install_dir: Path) -> list[Path]:
+    """All known platform-specific MATLAB launcher binary locations under
+    an install root. Capability sniffing uses this; it's also the source
+    of truth for which file path to record in the SolverInstall.
+    """
+    return [
+        install_dir / "bin" / "matlab.exe",
+        install_dir / "bin" / "matlab",
+        install_dir / "bin" / "glnxa64" / "matlab",
+        install_dir / "bin" / "maci64" / "matlab",
+        install_dir / "bin" / "maca64" / "matlab",
     ]
+
+
+def _has_matlab_binary(install_dir: Path) -> bool:
+    return any(p.is_file() for p in _matlab_binary_paths(install_dir))
+
+
+def _first_matlab_binary(install_dir: Path) -> Path | None:
+    for p in _matlab_binary_paths(install_dir):
+        if p.is_file():
+            return p
+    return None
+
+
+def _candidates_from_windows_defaults() -> list[tuple[Path, str]]:
+    """Probe common Windows install layouts.
+
+    Capability-sniffs ``bin/matlab.exe`` instead of regex-matching the
+    directory name — this catches Mathworks-China-style installs like
+    ``E:\\Program Files (x86)\\Matlab_2024b\\`` and any other layout
+    that doesn't follow the canonical ``R20XXa`` naming convention.
+    """
+    bases: list[Path] = []
+    for drive in ("C:", "D:", "E:", "F:"):
+        bases.extend([
+            Path(rf"{drive}\Program Files\MATLAB"),
+            Path(rf"{drive}\Program Files (x86)\MATLAB"),
+            # Flat layouts: localized installers sometimes drop the install
+            # directly under Program Files\<MatlabXXXX>\, no MATLAB\ parent.
+            Path(rf"{drive}\Program Files"),
+            Path(rf"{drive}\Program Files (x86)"),
+        ])
     out: list[tuple[Path, str]] = []
+    seen: set[Path] = set()
     for base in bases:
         if not base.is_dir():
             continue
-        for child in sorted(base.iterdir(), reverse=True):
-            if not re.match(r"R\d{4}[ab]$", child.name):
-                continue
-            mexe = child / "bin" / "matlab.exe"
-            if mexe.is_file():
+        # Direct hit: base IS already the install root.
+        if _has_matlab_binary(base):
+            mexe = _first_matlab_binary(base)
+            assert mexe is not None
+            if mexe not in seen:
+                seen.add(mexe)
                 out.append((mexe, f"default-path:{base}"))
+            continue
+        # Otherwise scan one level for any child that looks like a MATLAB
+        # install. Soft name filter ("matlab" substring) avoids walking
+        # every app under Program Files; binary sniff still gates emission.
+        try:
+            children = sorted(base.iterdir(), reverse=True)
+        except OSError:
+            continue
+        for child in children:
+            if "matlab" not in child.name.lower():
+                continue
+            if not _has_matlab_binary(child):
+                continue
+            mexe = _first_matlab_binary(child)
+            assert mexe is not None
+            if mexe in seen:
+                continue
+            seen.add(mexe)
+            out.append((mexe, f"default-path:{base}"))
     return out
 
 
 def _candidates_from_linux_defaults() -> list[tuple[Path, str]]:
-    bases = [Path("/usr/local/MATLAB"), Path("/opt/MATLAB"), Path("/Applications")]
+    """Probe common Linux install layouts via binary sniff.
+
+    Soft name filter accepts either ``R20XXa``-style names (canonical
+    Mathworks install) or anything containing ``matlab`` (non-standard
+    layouts, custom repacks).
+    """
+    bases = [
+        Path("/usr/local/MATLAB"),
+        Path("/opt/MATLAB"),
+        Path("/usr/local"),
+        Path("/opt"),
+    ]
     out: list[tuple[Path, str]] = []
+    seen: set[Path] = set()
     for base in bases:
         if not base.is_dir():
             continue
-        for child in sorted(base.iterdir(), reverse=True):
-            if not re.match(r"R\d{4}[ab]$", child.name, re.IGNORECASE):
+        try:
+            children = sorted(base.iterdir(), reverse=True)
+        except OSError:
+            continue
+        for child in children:
+            name_lc = child.name.lower()
+            if "matlab" not in name_lc and not re.match(
+                r"R\d{4}[ab]$", child.name, re.IGNORECASE
+            ):
                 continue
-            for sub in ("bin/matlab", "bin/glnxa64/matlab", "bin/maci64/matlab"):
-                p = child / sub
-                if p.is_file():
-                    out.append((p, f"default-path:{base}"))
-                    break
+            if not _has_matlab_binary(child):
+                continue
+            mexe = _first_matlab_binary(child)
+            assert mexe is not None
+            if mexe in seen:
+                continue
+            seen.add(mexe)
+            out.append((mexe, f"default-path:{base}"))
+    return out
+
+
+def _candidates_from_macos_defaults() -> list[tuple[Path, str]]:
+    """macOS: ``/Applications/MATLAB_R20XXa.app/`` and friends.
+
+    The ``.app`` bundle root contains ``bin/maci64/matlab`` (Intel) or
+    ``bin/maca64/matlab`` (Apple Silicon) plus ``VersionInfo.xml`` at the
+    same level as the canonical Linux/Windows layout.
+    """
+    base = Path("/Applications")
+    if not base.is_dir():
+        return []
+    out: list[tuple[Path, str]] = []
+    seen: set[Path] = set()
+    try:
+        children = sorted(base.iterdir(), reverse=True)
+    except OSError:
+        return []
+    for child in children:
+        if "matlab" not in child.name.lower():
+            continue
+        if not _has_matlab_binary(child):
+            continue
+        mexe = _first_matlab_binary(child)
+        assert mexe is not None
+        if mexe in seen:
+            continue
+        seen.add(mexe)
+        out.append((mexe, f"default-path:{base}"))
     return out
 
 
@@ -143,6 +330,7 @@ _INSTALL_FINDERS: list[Callable[[], list[tuple[Path, str]]]] = [
     _candidates_from_path,
     _candidates_from_windows_defaults,
     _candidates_from_linux_defaults,
+    _candidates_from_macos_defaults,
 ]
 """Strategy chain. APPEND new finders for new MATLAB layouts; do not edit."""
 

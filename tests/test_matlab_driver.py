@@ -185,3 +185,121 @@ class TestReleaseEngineMap:
         from sim_plugin_matlab.driver import _engine_version_for
 
         assert _engine_version_for("R2099z") is None
+
+
+# A real Mathworks VersionInfo.xml from an R2024b install. Embedded
+# verbatim — this is the contract format we depend on.
+_VERSION_INFO_XML_R2024B = """<?xml version="1.0" encoding="UTF-8"?>
+<!-- Version information for MathWorks R2024b Release -->
+<MathWorks_version_info>
+  <version>24.2.0.2712019</version>
+  <release>R2024b</release>
+  <description></description>
+  <date>Aug 22 2024</date>
+  <checksum>75238527</checksum>
+</MathWorks_version_info>
+"""
+
+
+class TestVersionInfoXmlProbe:
+    """`VersionInfo.xml` is the Mathworks-published contract for release
+    identification; works regardless of install directory naming."""
+
+    def test_reads_release_tag(self, tmp_path):
+        from sim_plugin_matlab.driver import _version_from_versioninfo_xml
+
+        (tmp_path / "VersionInfo.xml").write_text(_VERSION_INFO_XML_R2024B)
+        assert _version_from_versioninfo_xml(tmp_path) == "R2024b"
+
+    def test_missing_file_returns_none(self, tmp_path):
+        from sim_plugin_matlab.driver import _version_from_versioninfo_xml
+
+        assert _version_from_versioninfo_xml(tmp_path) is None
+
+    def test_malformed_xml_returns_none(self, tmp_path):
+        from sim_plugin_matlab.driver import _version_from_versioninfo_xml
+
+        (tmp_path / "VersionInfo.xml").write_text("not xml at all")
+        assert _version_from_versioninfo_xml(tmp_path) is None
+
+    def test_lowercases_release_letter(self, tmp_path):
+        from sim_plugin_matlab.driver import _version_from_versioninfo_xml
+
+        (tmp_path / "VersionInfo.xml").write_text(
+            "<release>R2023B</release>"
+        )
+        assert _version_from_versioninfo_xml(tmp_path) == "R2023b"
+
+
+class TestMakeInstallNonCanonicalName:
+    """Regression: Mathworks-China-style installs like
+    ``E:\\Program Files (x86)\\Matlab_2024b\\`` have no ``R20XX`` in the
+    path string. They must still be recognized via VersionInfo.xml."""
+
+    def test_install_with_non_canonical_dir_name_is_recognized(self, tmp_path):
+        from sim_plugin_matlab.driver import _make_install
+
+        install_dir = tmp_path / "Matlab_2024b"  # NO "R" prefix
+        (install_dir / "bin").mkdir(parents=True)
+        matlab_bin = install_dir / "bin" / "matlab.exe"
+        matlab_bin.write_text("")
+        (install_dir / "VersionInfo.xml").write_text(_VERSION_INFO_XML_R2024B)
+
+        inst = _make_install(matlab_bin, source="test:synth")
+        assert inst is not None
+        assert inst.version == "R2024b"
+        assert inst.extra["engine_version"] == "24.2"
+        assert inst.path == str(install_dir)
+
+    def test_install_with_no_versioninfo_falls_back_to_path_regex(self, tmp_path):
+        from sim_plugin_matlab.driver import _make_install
+
+        install_dir = tmp_path / "R2024a"
+        (install_dir / "bin").mkdir(parents=True)
+        matlab_bin = install_dir / "bin" / "matlab.exe"
+        matlab_bin.write_text("")
+
+        inst = _make_install(matlab_bin, source="test:synth")
+        assert inst is not None
+        assert inst.version == "R2024a"
+
+    def test_install_with_neither_signal_returns_none(self, tmp_path):
+        from sim_plugin_matlab.driver import _make_install
+
+        install_dir = tmp_path / "weirdname"  # no R20XX, no VersionInfo.xml
+        (install_dir / "bin").mkdir(parents=True)
+        matlab_bin = install_dir / "bin" / "matlab.exe"
+        matlab_bin.write_text("")
+
+        assert _make_install(matlab_bin, source="test:synth") is None
+
+
+class TestBinarySniff:
+    """Capability sniffing — does this dir have a runnable MATLAB binary?
+    Used by the default-path finders to gate emission."""
+
+    def test_windows_layout(self, tmp_path):
+        from sim_plugin_matlab.driver import _has_matlab_binary
+
+        (tmp_path / "bin").mkdir()
+        (tmp_path / "bin" / "matlab.exe").write_text("")
+        assert _has_matlab_binary(tmp_path) is True
+
+    def test_linux_layout(self, tmp_path):
+        from sim_plugin_matlab.driver import _has_matlab_binary
+
+        (tmp_path / "bin" / "glnxa64").mkdir(parents=True)
+        (tmp_path / "bin" / "glnxa64" / "matlab").write_text("")
+        assert _has_matlab_binary(tmp_path) is True
+
+    def test_macos_apple_silicon_layout(self, tmp_path):
+        from sim_plugin_matlab.driver import _has_matlab_binary
+
+        (tmp_path / "bin" / "maca64").mkdir(parents=True)
+        (tmp_path / "bin" / "maca64" / "matlab").write_text("")
+        assert _has_matlab_binary(tmp_path) is True
+
+    def test_empty_dir_is_not_a_matlab_install(self, tmp_path):
+        from sim_plugin_matlab.driver import _has_matlab_binary
+
+        assert _has_matlab_binary(tmp_path) is False

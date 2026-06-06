@@ -36,6 +36,36 @@ inside this plugin. If those tools are present, agents and users can combine
 them directly with `sim`; if they are absent, `uv run sim run`, `uv run sim exec`, and MATLAB
 `-batch` remain valid paths.
 
+For release gates, use headless mode and capture both local-editable and
+public-artifact evidence. Set UTF-8 and opt-in integration flags before live
+checks:
+
+```powershell
+$env:PYTHONIOENCODING = 'utf-8'
+$env:PYTHONUTF8 = '1'
+$env:SIM_MATLAB_RUN_INTEGRATION = '1'
+```
+
+Then verify the MATLAB binary, Simulink availability, and engine import before
+running solver smokes:
+
+```powershell
+where.exe matlab
+matlab -batch "disp(version); disp(ver('simulink').Version)"
+uv run --extra test --extra engine python -c "import matlab.engine; print('engine ok')"
+New-Item -ItemType Directory -Force .pytest_basetemp | Out-Null
+uv run --extra test --extra engine pytest tests/test_real_matlab_smoke.py -q --basetemp .pytest_basetemp/live
+uv run --extra test --extra engine sim check matlab
+uv run --extra test --extra engine sim run --solver matlab fixtures/matlab_ok.m
+```
+
+Exercise sessions with `uv run sim connect --solver matlab --ui-mode no_gui`,
+one bounded JSON-emitting `uv run sim exec`, and
+`uv run sim disconnect --stop-server`. After an approved publish, create a fresh
+temp venv and install the public wheel URL with the `engine` extra, then repeat
+`uv run sim check`, a minimal `.m` run, and the persistent-session smoke from
+that public install.
+
 ---
 
 ## MATLAB-specific layered content
@@ -163,6 +193,14 @@ What is **not** wired yet (deferred per [sim-cli issue
 persistent Simulink sessions (listed under Non-goals in issue #27).
 Today you get one `uv run sim run <model.slx>` per simulation and read the
 result file yourself; do not assume any of the deferred surface exists.
+
+For release validation, create temporary Simulink models under `%TEMP%` rather
+than committing `.slx` fixtures. A minimal headless model can be created with
+MATLAB batch by wiring `simulink/Sources/Sine Wave` to `simulink/Sinks/Out1`,
+setting a short `StopTime`, and saving to a temp `.slx`. Run that file through
+`uv run sim run --solver matlab <temp>.slx`, read the saved run stdout for the
+final JSON line, and verify `result_file` exists with `.parquet` or `.mat`
+extension.
 
 ---
 

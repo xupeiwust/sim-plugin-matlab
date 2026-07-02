@@ -1,27 +1,35 @@
 ---
 name: matlab-sim
-description: Use when running MATLAB `.m` scripts or Simulink `.slx` / `.mdl` models through sim-cli's MATLAB plugin — one-shot via `uv run sim run --solver matlab`, local persistent sessions via `uv run sim connect --solver matlab`, explicit JSON result extraction, and conservative handling of MATLAB desktop and Simulink model state. Shared / remote Simulink sessions are a non-goal.
+description: Use when running MATLAB `.m` scripts or Simulink `.slx` / `.mdl` models, or deciding how to control a local MATLAB install. Choose the simplest real path first, using direct `matlab -batch`, available MATLAB Engine/agent-toolkit/MCP tools, or sim-cli's MATLAB plugin when standardized execution, persistent sessions, diagnostics, and artifact handling are useful. Shared / remote Simulink sessions are a non-goal.
 ---
 
 # matlab-sim
 
-You are driving **MATLAB** via the sim MATLAB plugin. This skill is
-self-contained for MATLAB-specific work: it covers one-shot batch runs,
-local persistent sessions, Simulink dispatch, version probing, acceptance, and
-escalation points for this plugin.
+You are working with **MATLAB**. This skill is self-contained for
+MATLAB-specific work: it covers direct local availability probing, one-shot
+batch runs, local persistent sessions, Simulink dispatch, version probing,
+acceptance, and escalation points for this plugin.
 
-Start every real task with:
+Before requiring sim-cli, verify the intended MATLAB control path from direct
+local evidence: a user-provided path, `matlab` on `PATH`, `MATLABROOT`, common
+install roots, a visible MATLAB Desktop session, or available MATLAB
+Engine/agent-toolkit/MCP tools. Missing sim-cli is not evidence that MATLAB is
+missing. When sim-cli is already selected/available or the task needs run
+history, standardized validation, persistent sessions, or plugin diagnostics,
+run:
 
 ```bash
 uv run sim check matlab
 ```
 
-For one-shot execution, use `uv run sim run --solver matlab <script-or-model>`. For a
-local persistent MATLAB engine session, use `uv run sim connect --solver matlab`, then
-bounded `uv run sim exec` snippets, then `uv run sim disconnect`. Persistent sessions require
-the optional `matlabengine` package that matches the installed MATLAB release;
-use `uv run sim env install matlab` or install the matching pin from
-`compatibility.yaml`.
+For direct one-shot execution, `matlab -batch` is a valid smoke path when it is
+visible in the current runtime. For one-shot execution through sim-cli, use
+`uv run sim run --solver matlab <script-or-model>`. For a local persistent
+MATLAB engine session through sim-cli, use `uv run sim connect --solver matlab`,
+then bounded `uv run sim exec` snippets, then `uv run sim disconnect`.
+Persistent sessions require the optional `matlabengine` package that matches
+the installed MATLAB release; use `uv run sim env install matlab` or install
+the matching pin from `compatibility.yaml`.
 
 Other optional MATLAB and Simulink agent toolkits may be available in the
 active agent environment. Combine them with this plugin when they fit the local

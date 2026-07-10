@@ -31,6 +31,30 @@ Persistent sessions require the optional `matlabengine` package that matches
 the installed MATLAB release; use `uv run sim env install matlab` or install
 the matching pin from `compatibility.yaml`.
 
+## Long-running execution and recovery
+
+Keep bounded MATLAB work in the foreground when it fits the active tool-call
+budget. Use `matlab -batch`, a project script, or a background process only
+when the run is expected to outlive that budget, must continue across agent
+turns, or the user explicitly asks for background execution. Use an Engine
+session for incremental workspace interaction, not as a promise that the task
+will survive an app or agent-runtime restart.
+
+For a long run, use absolute diary/console-log and output paths so the agent can
+inspect progress and results later. Do not require a fixed directory tree, a
+job manifest, or sim-cli when the direct MATLAB launcher is sufficient.
+
+A shell or tool timeout ends that observation call; it does not prove MATLAB
+stopped. Before retrying or stopping, check the existing process, diary or
+console-log tail, and output-file timestamps. Confirm process ownership from
+the executable, full command line, start time, and working or output paths.
+Never terminate every `matlab` process by name.
+
+Use *resume* only when a `.mat` file or another workflow-defined MATLAB
+checkpoint contains state that can actually continue the calculation. Without
+a usable checkpoint, describe the action as a restart rather than promising
+generic resume behavior.
+
 Other optional MATLAB and Simulink agent toolkits may be available in the
 active agent environment. Combine them with this plugin when they fit the local
 setup and task. Examples include MathWorks' MATLAB Agentic Toolkit, Simulink
